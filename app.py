@@ -1,7 +1,7 @@
 import os
 from flask import (
-    Flask, flash, render_template,redirect, 
-    request, session, url_for )
+    Flask, flash, render_template, redirect,
+    request, session, url_for)
 from flask_pymongo import PyMongo
 from bson.objectid import ObjectId
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -21,7 +21,7 @@ mongo = PyMongo(app)
 @app.route("/")
 @app.route("/get_tasks")
 def get_tasks():
-    tasks = list(mongo.db.tasks.find())
+    tasks = mongo.db.tasks.find()
     return render_template("tasks.html", tasks=tasks)
 
 
@@ -31,11 +31,11 @@ def register():
         # Check if username already exists in DB
         existing_user = mongo.db.users.find_one(
             {"username": request.form.get("username").lower()})
-        
+
         if existing_user:
-           flash("Username already exists")
-           return redirect(url_for("register")) 
-        
+            flash("Username already exists")
+            return redirect(url_for("register"))
+
         register = {
             "username": request.form.get("username"),
             "password": generate_password_hash(request.form.get("password"))
@@ -56,11 +56,11 @@ def login():
         # Check the user exists in out database
         existing_user = mongo.db.users.find_one(
             {"username": request.form.get("username").lower()})
-        
+
         if existing_user:
             # ensure hashed password matches user input
             if check_password_hash(
-                existing_user["password"], request.form.get("password")):
+                    existing_user["password"], request.form.get("password")):
                 session["user"] = request.form.get("username").lower()
                 flash("Welcome, {}".format(request.form.get("username")))
                 return redirect(url_for(
@@ -69,7 +69,7 @@ def login():
                 # Invalid password
                 flash("Incorrect Username and/or Password")
                 return redirect(url_for("login"))
-            
+
         else:
             # Username does not exist
             flash("Incorrect Username and/or Password")
@@ -83,10 +83,10 @@ def profile(username):
     # Grab the sessions username from session
     username = mongo.db.users.find_one(
         {"username": session["user"]})["username"]
-    
+
     if session["user"]:
         return render_template("profile.html", username=username)
-    
+
     return redirect(url_for("login"))
 
 
@@ -98,8 +98,22 @@ def logout():
     return redirect(url_for("login"))
 
 
-@app.route("/add_task")
+@app.route("/add_task", methods=["GET", "POST"])
 def add_task():
+    if request.method == "POST":
+        is_urgent = "on" if request.form.get("is_urgent") else "off"
+        task = {
+            "category_name": request.form.get("category_name"),
+            "task_name": request.form.get("task_name"),
+            "task_description": request.form.get("task_description"),
+            "is_urgent": is_urgent,
+            "due_date": request.form.get("due_date"),
+            "created_by": session["user"]
+        }
+        mongo.db.tasks.insert_one(task)
+        flash("Task Successfully Added")
+        return redirect(url_for("get_tasks"))
+
     categories = mongo.db.categories.find().sort("category_name", 1)
     return render_template("add_task.html", categories=categories)
 
